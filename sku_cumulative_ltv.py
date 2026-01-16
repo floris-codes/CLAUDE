@@ -115,6 +115,9 @@ def calculate_cumulative_ltv(df: pd.DataFrame, customer_cohorts: pd.DataFrame, s
         order_totals['Order_Month'].astype('int64') - order_totals['Cohort_Month'].astype('int64')
     )
 
+    # Drop any rows with NaN values
+    order_totals = order_totals.dropna(subset=['Months_Since_Cohort'])
+
     # Filter to start month and later
     start_period = pd.Period(start_month, freq='M')
 
@@ -136,7 +139,13 @@ def calculate_cumulative_ltv(df: pd.DataFrame, customer_cohorts: pd.DataFrame, s
 
     # Get unique cohorts
     cohorts = sorted(customer_cohorts_filtered['Cohort_Month'].unique())
-    max_months = int(order_totals_filtered['Months_Since_Cohort'].max()) + 1
+
+    # Calculate max months, handling empty data
+    if len(order_totals_filtered) == 0 or order_totals_filtered['Months_Since_Cohort'].isna().all():
+        max_months = 1
+    else:
+        max_val = order_totals_filtered['Months_Since_Cohort'].max()
+        max_months = int(max_val) + 1 if pd.notna(max_val) else 1
 
     print(f"  Analyzing {len(cohorts)} cohorts from {cohorts[0]} to {cohorts[-1]}")
     print(f"  Maximum months tracked: {max_months}")
