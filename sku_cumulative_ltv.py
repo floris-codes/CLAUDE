@@ -69,8 +69,12 @@ def get_customers_by_first_sku(df: pd.DataFrame, target_sku: str) -> pd.DataFram
     first_order_items = first_order_items[first_order_items['Name'] == first_order_items['First_Order_Name']]
 
     # Find customers whose first order contained the target SKU
+    # Check both 'Lineitem sku' and 'Lineitem name' columns
+    sku_col = 'Lineitem sku' if 'Lineitem sku' in first_order_items.columns else 'Lineitem name'
+    print(f"  Searching in column: {sku_col}")
+
     customers_with_sku = first_order_items[
-        first_order_items['Lineitem name'].str.contains(target_sku, case=False, na=False)
+        first_order_items[sku_col].str.contains(target_sku, case=False, na=False)
     ]['Email'].unique()
 
     print(f"  Found {len(customers_with_sku):,} customers whose first order contained '{target_sku}'")
@@ -139,6 +143,9 @@ def calculate_cumulative_ltv(df: pd.DataFrame, customer_cohorts: pd.DataFrame, s
 
     # Get unique cohorts
     cohorts = sorted(customer_cohorts_filtered['Cohort_Month'].unique())
+
+    if len(cohorts) == 0:
+        raise ValueError("No customers found with this SKU as their first purchase. Check that the SKU exists in 'Lineitem sku' column.")
 
     # Calculate max months, handling empty data
     if len(order_totals_filtered) == 0 or order_totals_filtered['Months_Since_Cohort'].isna().all():
