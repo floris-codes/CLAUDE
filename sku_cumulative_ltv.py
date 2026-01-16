@@ -92,6 +92,9 @@ def calculate_cumulative_ltv(df: pd.DataFrame, customer_cohorts: pd.DataFrame, s
     - Values: Cumulative average LTV
     """
 
+    # Show available cohorts for debugging
+    print(f"  Available cohorts in data: {sorted(customer_cohorts['Cohort_Month'].unique())}")
+
     # Filter to only customers in our cohort
     target_customers = customer_cohorts['Email'].unique()
     df_filtered = df[df['Email'].isin(target_customers)].copy()
@@ -114,15 +117,26 @@ def calculate_cumulative_ltv(df: pd.DataFrame, customer_cohorts: pd.DataFrame, s
 
     # Filter to start month and later
     start_period = pd.Period(start_month, freq='M')
-    order_totals = order_totals[order_totals['Cohort_Month'] >= start_period]
-    customer_cohorts_filtered = customer_cohorts[customer_cohorts['Cohort_Month'] >= start_period]
 
-    if len(order_totals) == 0:
-        raise ValueError(f"No orders found for cohorts starting {start_month}")
+    # Show what we're filtering
+    cohorts_before_filter = customer_cohorts['Cohort_Month'].nunique()
+    customer_cohorts_filtered = customer_cohorts[customer_cohorts['Cohort_Month'] >= start_period]
+    cohorts_after_filter = customer_cohorts_filtered['Cohort_Month'].nunique()
+    print(f"  Cohorts before date filter: {cohorts_before_filter}, after: {cohorts_after_filter}")
+
+    order_totals_filtered = order_totals[order_totals['Cohort_Month'] >= start_period]
+
+    if len(order_totals_filtered) == 0:
+        print(f"\n  WARNING: No cohorts found starting {start_month}")
+        print(f"  Your earliest cohort is: {customer_cohorts['Cohort_Month'].min()}")
+        print(f"  Your latest cohort is: {customer_cohorts['Cohort_Month'].max()}")
+        print(f"\n  Using ALL cohorts instead...")
+        order_totals_filtered = order_totals
+        customer_cohorts_filtered = customer_cohorts
 
     # Get unique cohorts
     cohorts = sorted(customer_cohorts_filtered['Cohort_Month'].unique())
-    max_months = order_totals['Months_Since_Cohort'].max() + 1
+    max_months = int(order_totals_filtered['Months_Since_Cohort'].max()) + 1
 
     print(f"  Analyzing {len(cohorts)} cohorts from {cohorts[0]} to {cohorts[-1]}")
     print(f"  Maximum months tracked: {max_months}")
@@ -132,7 +146,7 @@ def calculate_cumulative_ltv(df: pd.DataFrame, customer_cohorts: pd.DataFrame, s
 
     for cohort in cohorts:
         cohort_customers = customer_cohorts_filtered[customer_cohorts_filtered['Cohort_Month'] == cohort]['Email'].unique()
-        cohort_orders = order_totals[order_totals['Email'].isin(cohort_customers)]
+        cohort_orders = order_totals_filtered[order_totals_filtered['Email'].isin(cohort_customers)]
 
         n_customers = len(cohort_customers)
 
