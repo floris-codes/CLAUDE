@@ -199,9 +199,15 @@ def generate_report(result_df: pd.DataFrame, target_sku: str, output_path: str):
     print("\n" + "=" * 70)
     print(f"CUMULATIVE LTV REPORT - First SKU: {target_sku}")
     print("=" * 70)
+    print(f"\nTotal Customers: {customers.sum():,}")
     print(f"\nCustomers per Cohort:")
     for cohort, count in customers.items():
         print(f"  {cohort}: {count:,} customers")
+
+    # Rename index to include customer count
+    original_index = ltv_data.index.tolist()
+    new_index = [f"{cohort} (n={int(customers[cohort]):,})" for cohort in original_index]
+    ltv_data.index = new_index
 
     print(f"\nCumulative Average LTV by Month:")
     print(ltv_data.round(2).to_string())
