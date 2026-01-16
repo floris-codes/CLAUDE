@@ -2,11 +2,16 @@
 """
 Shopify Cohort LTV Heatmap Generator
 
-Analyzes Shopify orders_export.csv to create a heatmap showing Average LTV
+Analyzes Shopify orders_export.csv files to create a heatmap showing Average LTV
 by First Product Purchased and Cohort Month.
 
+Supports multiple input files which will be combined for analysis.
+
 Usage:
-    python shopify_cohort_ltv_heatmap.py orders_export.csv [--min-volume 10] [--output heatmap.png]
+    python shopify_cohort_ltv_heatmap.py orders_export_1.csv orders_export_2.csv ... [--min-volume 10] [--output heatmap.png]
+
+Example with 6 exports:
+    python shopify_cohort_ltv_heatmap.py export1.csv export2.csv export3.csv export4.csv export5.csv export6.csv --output heatmap.png
 """
 
 import argparse
@@ -17,9 +22,11 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 
-def load_shopify_orders(filepath: str) -> pd.DataFrame:
+def load_shopify_orders(filepaths: list) -> pd.DataFrame:
     """
-    Load and parse a standard Shopify orders export CSV.
+    Load and parse one or more standard Shopify orders export CSV files.
+
+    Supports multiple files which will be combined into a single DataFrame.
 
     Standard Shopify columns used:
     - Name: Order number/name
@@ -29,7 +36,25 @@ def load_shopify_orders(filepath: str) -> pd.DataFrame:
     - Total: Order total amount
     - Financial Status: Payment status (paid, pending, etc.)
     """
-    df = pd.read_csv(filepath, low_memory=False)
+    if isinstance(filepaths, str):
+        filepaths = [filepaths]
+
+    dfs = []
+    for filepath in filepaths:
+        print(f"  Loading: {filepath}")
+        df_part = pd.read_csv(filepath, low_memory=False)
+        df_part['_source_file'] = filepath  # Track source for debugging
+        dfs.append(df_part)
+
+    df = pd.concat(dfs, ignore_index=True)
+    print(f"  Combined {len(filepaths)} file(s) into {len(df):,} rows")
+
+    # Deduplicate in case same orders appear in multiple exports
+    # Use Name (order ID) + Lineitem name as composite key
+    original_len = len(df)
+    df = df.drop_duplicates(subset=['Name', 'Email', 'Lineitem name', 'Total'], keep='first')
+    if len(df) < original_len:
+        print(f"  Removed {original_len - len(df):,} duplicate rows")
 
     # Validate required columns exist
     required_cols = ['Name', 'Email', 'Created at', 'Lineitem name', 'Total']
@@ -282,8 +307,9 @@ def main():
         description='Generate a Cohort LTV Heatmap from Shopify orders export.'
     )
     parser.add_argument(
-        'input_file',
-        help='Path to Shopify orders_export.csv file'
+        'input_files',
+        nargs='+',
+        help='Path(s) to Shopify orders_export.csv file(s). Multiple files will be combined.'
     )
     parser.add_argument(
         '--min-volume',
@@ -299,9 +325,9 @@ def main():
 
     args = parser.parse_args()
 
-    print(f"Loading orders from: {args.input_file}")
-    df = load_shopify_orders(args.input_file)
-    print(f"Loaded {len(df):,} line items from orders")
+    print(f"Loading orders from {len(args.input_files)} file(s):")
+    df = load_shopify_orders(args.input_files)
+    print(f"Total: {len(df):,} line items from orders")
 
     print("Identifying first SKU per customer...")
     customer_cohorts = identify_first_sku_per_customer(df)
