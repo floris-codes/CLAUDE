@@ -51,6 +51,11 @@ def load_shopify_orders(filepaths: list) -> pd.DataFrame:
     df = df.dropna(subset=['Email', 'Created at', 'Lineitem name', 'Total'])
     df['Email'] = df['Email'].str.lower().str.strip()
 
+    # Remove orders with $0 or negative totals (likely cancelled/refunded)
+    df = df[df['Total'] > 0]
+
+    print(f"  After cleaning: {len(df):,} valid rows")
+
     return df
 
 
