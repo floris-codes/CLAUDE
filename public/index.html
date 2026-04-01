@@ -934,7 +934,9 @@ async function fetchJuoSubscriptions() {
     }
 
     const json = await res.json();
+    console.log('JUO response page', pageNum, json);
     const items = json.data || json.subscriptions || (Array.isArray(json) ? json : []);
+    console.log('Found', items.length, 'items on page', pageNum, '- nextCursor:', json.nextCursor);
     allData = allData.concat(items);
 
     if (json.nextCursor) {
@@ -944,7 +946,7 @@ async function fetchJuoSubscriptions() {
       hasMore = false;
     }
 
-    if (pageNum > 50) break;
+    if (pageNum > 100) break;
   }
 
   return allData;
