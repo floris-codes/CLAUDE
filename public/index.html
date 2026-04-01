@@ -617,12 +617,15 @@
   <div class="logo">alua<span>.</span>ltv</div>
   <div class="header-right">
     <div class="status-dot" id="statusDot" data-tip="API connection status"></div>
-    <button class="sync-btn" id="syncBtn" onclick="loadData()">
+    <button class="sync-btn" style="background:#444;margin-right:8px;" onclick="loadData(true)" title="Fast sync — JUO only, no Shopify enrichment">
+      ⚡ Quick
+    </button>
+    <button class="sync-btn" id="syncBtn" onclick="loadData(false)" title="Full sync — includes Shopify revenue data (slower)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="syncIcon">
         <path d="M23 4v6h-6M1 20v-6h6"/>
         <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
       </svg>
-      Sync Data
+      Full Sync
     </button>
   </div>
 </header>
@@ -959,7 +962,7 @@ async function fetchShopifyOrderTotal(email) {
 }
 
 // ── Main Load ──────────────────────────────────────────────────────────────
-async function loadData() {
+async function loadData(quickMode = false) {
   if (!cfg.juoKey) {
     showToast('Please enter your Juo API key first', 'error');
     document.getElementById('configBody').classList.add('open');
@@ -999,25 +1002,30 @@ async function loadData() {
       return false;
     });
 
-    // Step 2: Check Shopify connection
-    setLoading(true, 'Checking Shopify connection…');
+    // Step 2: Check Shopify connection (skip if quick mode)
     let shopifyConnected = false;
-    try {
-      const statusRes = await fetch('/api/shopify/status', {
-        headers: { 'X-Shopify-Domain': cfg.shopDomain, 'X-Shopify-Access-Token': cfg.shopifyToken }
-      });
-      shopifyConnected = (await statusRes.json()).connected;
-    } catch(e) { shopifyConnected = false; }
+    if (!quickMode) {
+      setLoading(true, 'Checking Shopify connection…');
+      try {
+        const statusRes = await fetch('/api/shopify/status', {
+          headers: { 'X-Shopify-Domain': cfg.shopDomain, 'X-Shopify-Access-Token': cfg.shopifyToken }
+        });
+        shopifyConnected = (await statusRes.json()).connected;
+      } catch(e) { shopifyConnected = false; }
+    }
 
-    if (shopifyConnected) {
+    if (shopifyConnected && !quickMode) {
       // Step 3: For each unique customer, fetch ALL their Shopify orders since sub start
       // Group revenue by calendar month — this is the ground truth LTV
       const uniqueCustomerIds = allSubs.map(s => s.shopifyCustomerId).filter(Boolean);
       const enrichMap = {};
 
-      for (let i = 0; i < uniqueCustomerIds.length; i += 5) {
-        if (i % 50 === 0) setLoading(true, `Fetching Shopify revenue… (${i}/${uniqueCustomerIds.length})`);
-        const batch = uniqueCustomerIds.slice(i, i + 5);
+      // Process in smaller batches with delays to avoid Shopify rate limits
+      const batchSize = 2;
+      const delayMs = 600; // 600ms between batches to stay under rate limit
+      for (let i = 0; i < uniqueCustomerIds.length; i += batchSize) {
+        setLoading(true, `Fetching Shopify revenue… (${i}/${uniqueCustomerIds.length})`);
+        const batch = uniqueCustomerIds.slice(i, i + batchSize);
         await Promise.all(batch.map(async customerId => {
           try {
             const subRecord = allSubs.find(s => s.shopifyCustomerId === customerId);
@@ -1069,6 +1077,10 @@ async function loadData() {
             enrichMap[customerId] = { type: 'new', revenueByMonth: {}, totalLtv: 0 };
           }
         }));
+        // Delay between batches to avoid rate limits
+        if (i + batchSize < uniqueCustomerIds.length) {
+          await new Promise(r => setTimeout(r, delayMs));
+        }
       }
 
       allSubs = allSubs.map(s => {
