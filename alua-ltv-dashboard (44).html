@@ -1,0 +1,1915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alua · Subscriber LTV Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #18181f;
+    --border: #222230;
+    --accent: #c8f55a;
+    --accent2: #7b6ef6;
+    --accent3: #f56a5a;
+    --text: #e8e8f0;
+    --muted: #5a5a72;
+    --success: #5af5a0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .logo span {
+    color: var(--accent);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .sync-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent);
+    color: #0a0a0f;
+    border: none;
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+
+  .sync-btn:hover { background: #d9ff6a; transform: translateY(-1px); }
+  .sync-btn:active { transform: translateY(0); }
+  .sync-btn.loading { opacity: 0.7; pointer-events: none; }
+
+  .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+  .status-dot.connected { background: var(--success); box-shadow: 0 0 8px var(--success); }
+
+  /* ── API Config Panel ── */
+  .config-panel {
+    margin: 24px 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .config-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    cursor: pointer;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+
+  .config-header.open { border-bottom-color: var(--border); }
+
+  .config-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+
+  .config-body {
+    display: none;
+    padding: 20px;
+    gap: 16px;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .config-body.open { display: grid; }
+
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field-group.full { grid-column: 1 / -1; }
+
+  label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+
+  input:focus { border-color: var(--accent2); }
+  input::placeholder { color: var(--muted); }
+
+  .connect-btn {
+    grid-column: 1 / -1;
+    background: var(--accent2);
+    color: white;
+    border: none;
+    padding: 11px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+
+  .connect-btn:hover { background: #8f84f8; }
+
+  /* ── Main Layout ── */
+  .main {
+    padding: 0 32px 40px;
+  }
+
+  /* ── KPI Cards ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .kpi:hover { border-color: var(--accent2); }
+
+  .kpi::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .kpi:nth-child(1)::before { background: var(--accent); }
+  .kpi:nth-child(2)::before { background: var(--accent2); }
+  .kpi:nth-child(3)::before { background: var(--accent3); }
+  .kpi:nth-child(4)::before { background: var(--success); }
+
+  .kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .kpi-value {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .kpi-delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-left: 6px;
+  }
+
+  .kpi-delta.up { background: rgba(90, 245, 160, 0.12); color: var(--success); }
+  .kpi-delta.down { background: rgba(245, 106, 90, 0.12); color: var(--accent3); }
+
+  /* ── Charts Row ── */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .card-title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+
+  .card-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    margin-top: 2px;
+  }
+
+  .card-body { padding: 20px 24px; }
+
+  /* ── Cohort Chart ── */
+  .ltv-chart { position: relative; height: 220px; }
+
+  .chart-canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ── Cohort Table ── */
+  .cohort-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+  }
+
+  .cohort-table th {
+    text-align: left;
+    padding: 8px 12px;
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cohort-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(34,34,48,0.5);
+  }
+
+  .cohort-table tr:last-child td { border-bottom: none; }
+
+  .cohort-table tr:hover td { background: var(--surface2); }
+
+  .cycle-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'Syne', sans-serif;
+  }
+
+  .active { background: rgba(90,245,160,0.12); color: var(--success); }
+  .canceled { background: rgba(245,106,90,0.12); color: var(--accent3); }
+  .paused { background: rgba(123,110,246,0.12); color: var(--accent2); }
+
+  /* ── LTV Heat Bar ── */
+  .ltv-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ltv-fill {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--accent);
+    transition: width 0.6s ease;
+    min-width: 2px;
+  }
+
+  /* ── Cohort Heatmap ── */
+  .heatmap-wrap { overflow-x: auto; }
+
+  .heatmap {
+    min-width: 600px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+  }
+
+  .heatmap-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+
+  .heatmap-label {
+    width: 80px;
+    flex-shrink: 0;
+    color: var(--muted);
+    font-size: 10px;
+    text-align: right;
+    padding-right: 8px;
+  }
+
+  .heatmap-cell {
+    width: 52px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 500;
+    transition: transform 0.15s;
+    cursor: default;
+    color: rgba(0,0,0,0.8);
+  }
+
+  .heatmap-cell:hover { transform: scale(1.05); z-index: 1; position: relative; }
+
+  .heatmap-header {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    padding-left: 88px;
+  }
+
+  .heatmap-col-label {
+    width: 52px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Subscriber Table ── */
+  .sub-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+  }
+
+  .sub-table th {
+    text-align: left;
+    padding: 10px 16px;
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  .sub-table td {
+    padding: 11px 16px;
+    border-bottom: 1px solid rgba(34,34,48,0.4);
+    vertical-align: middle;
+  }
+
+  .sub-table tr:last-child td { border-bottom: none; }
+  .sub-table tr:hover td { background: var(--surface2); }
+
+  /* ── Pagination / Search ── */
+  .table-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .search-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    width: 240px;
+  }
+
+  .search-input:focus { border-color: var(--accent2); }
+
+  .filter-group { display: flex; gap: 8px; }
+
+  .filter-btn {
+    padding: 7px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .filter-btn:hover, .filter-btn.active {
+    background: var(--accent2);
+    border-color: var(--accent2);
+    color: white;
+  }
+
+  /* ── Notification ── */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 20px;
+    font-size: 13px;
+    font-family: 'DM Mono', monospace;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 999;
+    max-width: 360px;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.error { border-color: var(--accent3); }
+  .toast.success { border-color: var(--success); }
+
+  /* ── Empty State ── */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+  .empty-sub { font-size: 13px; font-family: 'DM Mono', monospace; }
+
+  /* ── Loading overlay ── */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,15,0.8);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .loading-overlay.show { display: flex; }
+  .loader {
+    width: 44px; height: 44px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .loading-text { font-size: 13px; font-family: 'DM Mono', monospace; color: var(--muted); }
+
+  /* ── Misc ── */
+  .section-title {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 16px;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: var(--surface2);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  svg { display: inline-block; vertical-align: middle; }
+
+  .text-accent { color: var(--accent); }
+  .text-accent2 { color: var(--accent2); }
+  .text-muted { color: var(--muted); }
+  .text-sm { font-size: 12px; font-family: 'DM Mono', monospace; }
+
+  /* ── Tooltip ── */
+  [data-tip] { position: relative; cursor: help; }
+  [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 99;
+  }
+
+  @media (max-width: 1200px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .charts-row { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 700px) {
+    header { padding: 14px 16px; }
+    .main { padding: 0 16px 40px; }
+    .config-panel { margin: 16px; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .kpi { padding: 16px; }
+    .kpi-value { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loader"></div>
+  <div class="loading-text" id="loadingText">Fetching subscriptions…</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<header>
+  <div class="logo">alua<span>.</span>ltv</div>
+  <div class="header-right">
+    <div class="status-dot" id="statusDot" data-tip="API connection status"></div>
+    <button class="sync-btn" id="syncBtn" onclick="loadData()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="syncIcon">
+        <path d="M23 4v6h-6M1 20v-6h6"/>
+        <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+      </svg>
+      Sync Data
+    </button>
+  </div>
+</header>
+
+<!-- Config Panel -->
+<div class="config-panel">
+  <div class="config-header" id="configToggle" onclick="toggleConfig()">
+    <span class="config-title">🔑 API Configuration</span>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="configChevron">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  </div>
+  <div class="config-body open" id="configBody">
+    <div class="field-group">
+      <label>Juo Admin API Key</label>
+      <input type="password" id="juoKey" placeholder="X-Juo-Admin-Api-Key…" autocomplete="off">
+    </div>
+    <div class="field-group">
+      <label>Shopify Store Domain</label>
+      <input type="text" id="shopDomain" placeholder="alua.myshopify.com">
+    </div>
+    <div class="field-group">
+      <label>Shopify Admin API Token</label>
+      <input type="password" id="shopifyToken" placeholder="shpat_…" autocomplete="off">
+    </div>
+    <div class="field-group">
+      <label>Avg Order Value (€) — fallback</label>
+      <input type="number" id="fallbackAov" placeholder="39.95" value="39.95">
+    </div>
+    <button class="connect-btn" onclick="saveConfig()">Save & Connect</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- KPIs -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi">
+      <div class="kpi-label">Avg Subscriber LTV</div>
+      <div class="kpi-value text-accent" id="kpiLTV">—</div>
+      <div class="kpi-sub">across all cohorts</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Active Subscribers</div>
+      <div class="kpi-value" id="kpiActive">—</div>
+      <div class="kpi-sub">currently active</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Avg Billing Cycles</div>
+      <div class="kpi-value" id="kpiCycles">—</div>
+      <div class="kpi-sub">before churn or today</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Retention Rate</div>
+      <div class="kpi-value text-accent" id="kpiRetention">—</div>
+      <div class="kpi-sub">active / total subs</div>
+    </div>
+    <div class="kpi" id="kpiChargebacks">
+      <div class="kpi-label">Chargebacks</div>
+      <div class="kpi-value" style="color:var(--accent3);">—</div>
+      <div class="kpi-sub">revenue lost to chargebacks</div>
+    </div>
+    <div class="kpi" id="kpiCustomerType">
+      <div class="kpi-label">New Subscribers</div>
+      <div class="kpi-value" style="color:var(--accent2);">—</div>
+      <div class="kpi-sub">first-time vs existing (Shopify)</div>
+    </div>
+  </div>
+
+  <!-- Cohort Analysis -->
+  <div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Cohort Analysis — LTV &amp; Retention by Start Month</div>
+        <div class="card-sub">Each row = subscribers who started in that month. Columns = months since start (M1, M2…)</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto;" id="cohortTableWrap">
+      <div class="empty-state" style="padding:60px;">
+        <div class="empty-icon">📊</div>
+        <div class="empty-title">No cohort data yet</div>
+        <div class="empty-sub">Sync to see cohort analysis</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profit per Cohort -->
+  <div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Profit per Cohort per Month</div>
+        <div class="card-sub">Revenue minus COGS (35%), shipping (€5.30/order), payment fees (1.41%), VAT (8%), OPEX (5%)</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);">Margin after all costs</span>
+      </div>
+    </div>
+    <div style="overflow-x:auto;" id="profitTableWrap">
+      <div class="empty-state" style="padding:40px;">
+        <div class="empty-icon">💰</div>
+        <div class="empty-title">No profit data yet</div>
+        <div class="empty-sub">Sync to see profit analysis</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Subscription-only LTV -->
+  <div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Subscription-only LTV per Cohort</div>
+        <div class="card-sub">Only revenue from subscription orders (tagged subscription_juo / Firmhouse) — excludes extra purchases</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto;" id="subLtvTableWrap">
+      <div class="empty-state" style="padding:40px;">
+        <div class="empty-icon">🔁</div>
+        <div class="empty-title">No data yet</div>
+        <div class="empty-sub">Sync to see subscription-only LTV</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Storewide LTV -->
+  <div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Storewide LTV — All Customers</div>
+        <div class="card-sub">Average cumulative revenue per customer, grouped by acquisition month. Columns = months since first order.</div>
+      </div>
+      <button onclick="loadStorewideLtv()" class="filter-btn active" id="btnStorewideSync" style="padding:8px 16px;">Load Storewide LTV</button>
+    </div>
+    <div style="overflow-x:auto;" id="storewideTableWrap">
+      <div class="empty-state" style="padding:40px;">
+        <div class="empty-icon">🏪</div>
+        <div class="empty-title">Click "Load Storewide LTV" to fetch all customers</div>
+        <div class="empty-sub">Fetches all customers from the last 24 months from Shopify</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LTV Chart + Product breakdown -->
+  <div class="charts-row">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Cumulative LTV Growth per Cohort</div>
+          <div class="card-sub">Avg realized LTV over time, by start month</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="ltv-chart">
+          <canvas id="ltvCanvas" class="chart-canvas"></canvas>
+        </div>
+        <div id="chartEmpty" class="empty-state" style="display:none">
+          <div class="empty-icon">📊</div>
+          <div class="empty-title">No cohort data yet</div>
+          <div class="empty-sub">Connect your Juo API to see LTV by cohort</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">LTV by Product</div>
+          <div class="card-sub">Avg revenue per subscriber</div>
+        </div>
+      </div>
+      <div class="card-body" id="productBreakdown">
+        <div class="empty-state">
+          <div class="empty-icon">📦</div>
+          <div class="empty-title">No data</div>
+          <div class="empty-sub">Sync to see product LTV</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Subscriber Table -->
+  <div class="card">
+    <div class="table-controls">
+      <div class="section-title" style="margin-bottom:0;font-size:14px;">All Subscribers</div>
+      <div style="display:flex;gap:12px;align-items:center;">
+        <div class="filter-group">
+          <button class="filter-btn active" onclick="filterSubs('all',this)">All</button>
+          <button class="filter-btn" onclick="filterSubs('active',this)">Active</button>
+          <button class="filter-btn" onclick="filterSubs('canceled',this)">Canceled</button>
+        </div>
+        <input class="search-input" id="subSearch" placeholder="Search name or email…" oninput="renderSubTable()">
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="sub-table">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Product(s)</th>
+            <th>Started</th>
+            <th>Cycles</th>
+            <th>Realized LTV</th>
+            <th>Projected LTV</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="subTableBody">
+          <tr>
+            <td colspan="7">
+              <div class="empty-state">
+                <div class="empty-icon">👥</div>
+                <div class="empty-title">No subscribers loaded</div>
+                <div class="empty-sub">Enter your API keys above and click Sync Data</div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let allSubs = [];
+let filteredSubs = [];
+let activeFilter = 'all';
+let cfg = {};
+
+// Persist config
+function saveConfig() {
+  cfg = {
+    juoKey: document.getElementById('juoKey').value.trim(),
+    shopDomain: document.getElementById('shopDomain').value.trim(),
+    shopifyToken: document.getElementById('shopifyToken').value.trim(),
+    fallbackAov: parseFloat(document.getElementById('fallbackAov').value) || 39.95
+  };
+  localStorage.setItem('aluaLtvCfg', JSON.stringify(cfg));
+  showToast('Config saved ✓', 'success');
+  toggleConfig(true);
+}
+
+function loadConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('aluaLtvCfg') || '{}');
+    cfg = saved;
+    if (saved.juoKey) document.getElementById('juoKey').value = saved.juoKey;
+    if (saved.shopDomain) document.getElementById('shopDomain').value = saved.shopDomain;
+    if (saved.shopifyToken) document.getElementById('shopifyToken').value = saved.shopifyToken;
+    if (saved.fallbackAov) document.getElementById('fallbackAov').value = saved.fallbackAov;
+  } catch(e) {}
+}
+
+function toggleConfig(forceClose) {
+  const body = document.getElementById('configBody');
+  const header = document.getElementById('configToggle');
+  const chevron = document.getElementById('configChevron');
+  const isOpen = body.classList.contains('open');
+  if (forceClose || isOpen) {
+    body.classList.remove('open');
+    header.classList.remove('open');
+    chevron.style.transform = 'rotate(-90deg)';
+  } else {
+    body.classList.add('open');
+    header.classList.add('open');
+    chevron.style.transform = '';
+  }
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ── Loading ────────────────────────────────────────────────────────────────
+function setLoading(show, msg = 'Fetching data…') {
+  document.getElementById('loadingOverlay').classList.toggle('show', show);
+  document.getElementById('loadingText').textContent = msg;
+}
+
+// ── Fetch Juo Subscriptions (all pages) ───────────────────────────────────
+async function fetchJuoSubscriptions() {
+  const key = cfg.juoKey;
+  if (!key) throw new Error('Missing Juo API key');
+
+  let allData = [];
+  let cursor = null;
+  let hasMore = true;
+  const pageSize = 100;
+  let pageNum = 1;
+
+  while (hasMore) {
+    setLoading(true, `Fetching subscriptions (page ${pageNum})…`);
+    let url = `http://localhost:3333/juo/admin/v1/subscriptions?limit=${pageSize}`;
+    if (cursor) url += `&after=${encodeURIComponent(cursor)}`;
+
+    const res = await fetch(url, {
+      headers: { 'X-Juo-Admin-Api-Key': key }
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Juo API error ${res.status}: ${err}`);
+    }
+
+    const json = await res.json();
+    const items = json.data || json.subscriptions || (Array.isArray(json) ? json : []);
+    allData = allData.concat(items);
+
+    if (json.hasNextPage && json.endCursor) {
+      cursor = json.endCursor;
+      pageNum++;
+    } else {
+      hasMore = false;
+    }
+
+    if (pageNum > 50) break;
+  }
+
+  return allData;
+}
+
+// ── Fetch Shopify Orders for a customer email ─────────────────────────────
+async function fetchShopifyOrderTotal(email) {
+  if (!cfg.shopDomain || !cfg.shopifyToken || !email) return null;
+  const domain = cfg.shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const url = `https://${domain}/admin/api/2024-01/orders.json?email=${encodeURIComponent(email)}&status=any&limit=250&fields=total_price,financial_status`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'X-Shopify-Access-Token': cfg.shopifyToken,
+        'Content-Type': 'application/json'
+      }
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const orders = json.orders || [];
+    return orders
+      .filter(o => o.financial_status === 'paid')
+      .reduce((s, o) => s + parseFloat(o.total_price || 0), 0);
+  } catch(e) { return null; }
+}
+
+// ── Main Load ──────────────────────────────────────────────────────────────
+async function loadData() {
+  if (!cfg.juoKey) {
+    showToast('Please enter your Juo API key first', 'error');
+    document.getElementById('configBody').classList.add('open');
+    return;
+  }
+
+  const btn = document.getElementById('syncBtn');
+  const icon = document.getElementById('syncIcon');
+  btn.classList.add('loading');
+  icon.classList.add('spin');
+  setLoading(true, 'Connecting to Juo…');
+
+  try {
+    const rawSubs = await fetchJuoSubscriptions();
+
+    if (!rawSubs.length) {
+      showToast('No subscriptions returned from Juo', 'error');
+      setLoading(false);
+      btn.classList.remove('loading');
+      icon.classList.remove('spin');
+      return;
+    }
+
+    document.getElementById('statusDot').className = 'status-dot connected';
+    showToast(`Loaded ${rawSubs.length} subscriptions ✓`, 'success');
+    setLoading(true, 'Calculating LTV…');
+
+    // Process subscriptions
+    allSubs = rawSubs.map(s => processSub(s));
+
+    // Step 1: Deduplicate by shopifyCustomerId — one record per unique customer
+    // If a customer has multiple Juo subscriptions, keep the earliest cohort one
+    const seenIds = {};
+    allSubs = allSubs.filter(s => {
+      const key = s.shopifyCustomerId || s.id;
+      if (!seenIds[key]) { seenIds[key] = true; return true; }
+      return false;
+    });
+
+    // Step 2: Check Shopify connection
+    setLoading(true, 'Checking Shopify connection…');
+    let shopifyConnected = false;
+    try {
+      const statusRes = await fetch('http://localhost:3333/shopify/status');
+      shopifyConnected = (await statusRes.json()).connected;
+    } catch(e) { shopifyConnected = false; }
+
+    if (shopifyConnected) {
+      // Step 3: For each unique customer, fetch ALL their Shopify orders since sub start
+      // Group revenue by calendar month — this is the ground truth LTV
+      const uniqueCustomerIds = allSubs.map(s => s.shopifyCustomerId).filter(Boolean);
+      const enrichMap = {};
+
+      for (let i = 0; i < uniqueCustomerIds.length; i += 5) {
+        if (i % 50 === 0) setLoading(true, `Fetching Shopify revenue… (${i}/${uniqueCustomerIds.length})`);
+        const batch = uniqueCustomerIds.slice(i, i + 5);
+        await Promise.all(batch.map(async customerId => {
+          try {
+            const subRecord = allSubs.find(s => s.shopifyCustomerId === customerId);
+            const subStart = subRecord ? new Date(subRecord.createdAt) : new Date();
+            const res = await fetch(`http://localhost:3333/shopify/customer-orders/${customerId}`);
+            if (!res.ok) { enrichMap[customerId] = { type: 'new', revenueByMonth: {}, totalLtv: 0 }; return; }
+            const json = await res.json();
+            const orders = json.orders || [];
+
+            // New vs existing: any paid non-sub order BEFORE subscription start?
+            const hadOrderBefore = orders.some(o => {
+              if (o.financial_status !== 'paid') return false;
+              if (new Date(o.created_at) >= subStart) return false;
+              const tags = o.tags || '';
+              return !tags.includes('subscription_juo') && !tags.includes('Firmhouse');
+            });
+
+            // All paid orders from first of cohort month onwards
+            const cohortYear = subStart.getUTCFullYear();
+            const cohortMonth = String(subStart.getUTCMonth() + 1).padStart(2, '0');
+            const cohortMonthKey = `${cohortYear}-${cohortMonth}`; // e.g. "2025-10"
+
+            const revenueByMonth = {};      // ALL orders (sub + extra)
+            const subRevenueByMonth = {};   // ONLY subscription orders
+            let totalLtv = 0;
+            let totalSubLtv = 0;
+
+            orders
+              .filter(o => o.financial_status === 'paid' && o.created_at.slice(0, 7) >= cohortMonthKey)
+              .forEach(o => {
+                const m = o.created_at.slice(0, 7);
+                const val = parseFloat(o.total_price || 0);
+                // All revenue
+                revenueByMonth[m] = (revenueByMonth[m] || 0) + val;
+                totalLtv += val;
+                // Subscription-only revenue
+                const tags = o.tags || '';
+                const isSub = tags.includes('subscription_juo') || tags.includes('Firmhouse');
+                if (isSub) {
+                  subRevenueByMonth[m] = (subRevenueByMonth[m] || 0) + val;
+                  totalSubLtv += val;
+                }
+              });
+
+            enrichMap[customerId] = { type: hadOrderBefore ? 'existing' : 'new', revenueByMonth, totalLtv, subRevenueByMonth, totalSubLtv };
+          } catch(e) {
+            enrichMap[customerId] = { type: 'new', revenueByMonth: {}, totalLtv: 0 };
+          }
+        }));
+      }
+
+      allSubs = allSubs.map(s => {
+        const entry = enrichMap[s.shopifyCustomerId] || {};
+        return {
+          ...s,
+          customerType: entry.type || 'new',
+          realizedLtv: entry.totalLtv || s.realizedLtv,
+          revenueByMonth: entry.revenueByMonth || null,
+          subRevenueByMonth: entry.subRevenueByMonth || null
+        };
+      });
+      showToast(`Shopify revenue loaded for ${uniqueCustomerIds.length} customers ✓`, 'success');
+    } else {
+      showToast('Shopify not connected — visit http://localhost:3333/shopify/auth', 'info');
+    }
+
+    renderAll();
+    toggleConfig(true);
+  } catch(err) {
+    console.error(err);
+    showToast('Error: ' + err.message, 'error');
+    document.getElementById('statusDot').className = 'status-dot';
+  }
+
+  setLoading(false);
+  btn.classList.remove('loading');
+  icon.classList.remove('spin');
+}
+
+// ── Process a single Juo subscription ─────────────────────────────────────
+function processSub(s) {
+  const aov = cfg.fallbackAov || 39.95;
+  const cycles = parseInt(s.currentCycle || s.billingCycleCount || 0);
+  const status = s.status || 'unknown';
+
+  // Chargeback detection: Juo marks these as 'failed'
+  // Also check for chargeback tag in deliveryAddress or notes
+  const isChargeback = status === 'failed';
+  // Each chargeback = 1 cycle of revenue lost (reversed payment)
+  const chargebackAmount = isChargeback ? (s.items || []).reduce((sum, it) => sum + parseFloat(it.totalPrice || 0), 0) : 0;
+
+  // Items total
+  let itemsTotal = 0;
+  const items = s.items || [];
+  items.forEach(it => { itemsTotal += parseFloat(it.totalPrice || it.price || 0); });
+  if (itemsTotal === 0) itemsTotal = aov;
+
+  // Realized LTV: deduct chargeback amount
+  const grossLtv = cycles * itemsTotal;
+  const realizedLtv = Math.max(0, grossLtv - chargebackAmount);
+
+  // Projected: for active subs, assume avg 12 cycles total
+  const avgLifetime = 12;
+  const projectedLtv = status === 'active'
+    ? Math.max(realizedLtv, avgLifetime * itemsTotal)
+    : realizedLtv;
+
+  const customer = s.customer || {};
+  const email = typeof customer === 'string' ? '' : (customer.email || '');
+  const name = typeof customer === 'string' ? '' : `${customer.firstName || ''} ${customer.lastName || ''}`.trim();
+  // Shopify customer ID is the numeric string in customer field or customer.id
+  const shopifyCustomerId = typeof customer === 'string' ? customer : (customer.id || customer.shopifyId || '');
+
+  const products = items.map(it => it.title || it.name || 'Product').join(', ') || 'Subscription';
+  const createdAt = s.createdAt ? new Date(s.createdAt) : new Date();
+  const cohort = `${createdAt.getFullYear()}-${String(createdAt.getMonth()+1).padStart(2,'0')}`;
+
+  return {
+    id: s.id,
+    email,
+    name: name || email || s.serial || s.id,
+    shopifyCustomerId,
+    products,
+    createdAt,
+    cohort,
+    cycles,
+    status,
+    isChargeback,
+    chargebackAmount,
+    itemsTotal,
+    realizedLtv,
+    grossLtv,
+    projectedLtv,
+    customerType: 'unknown' // will be enriched: 'new' | 'existing'
+  };
+}
+
+// ── Build cohort data structure ───────────────────────────────────────────
+function buildCohorts() {
+  // cohorts[cohortKey] = { started, subs: [], byMonth: { 1: {active,churned,ltv}, ... } }
+  const cohorts = {};
+
+  // Deduplicate by shopifyCustomerId — same customer may have multiple Juo subscriptions
+  // Keep the one with the highest cycles (most activity)
+  const seenCustomers = {};
+  const dedupedSubs = [];
+  allSubs.forEach(s => {
+    const key = s.shopifyCustomerId || s.id;
+    if (!seenCustomers[key]) {
+      seenCustomers[key] = dedupedSubs.length;
+      dedupedSubs.push(s);
+    } else if (s.cycles > dedupedSubs[seenCustomers[key]].cycles) {
+      dedupedSubs[seenCustomers[key]] = s;
+    }
+  });
+
+  dedupedSubs.forEach(s => {
+    if (!cohorts[s.cohort]) {
+      cohorts[s.cohort] = { started: 0, subs: [], byMonth: {} };
+    }
+    const c = cohorts[s.cohort];
+    c.started++;
+    c.subs.push(s);
+
+    // Store max cycles per sub for second pass
+    s._maxCycles = Math.max(s.cycles, 1);
+  });
+
+  // Second pass: compute byMonth using real Shopify revenueByMonth (ground truth)
+  // M = calendar month offset from cohort start (M1 = start month, M2 = next month, etc.)
+  const now = new Date();
+  Object.entries(cohorts).forEach(([cohortKey, c]) => {
+    const [cy, cm] = cohortKey.split('-').map(Number);
+
+    // Max months = how many calendar months have elapsed since cohort started
+    // +1 because we include the current month itself
+    const monthsElapsed = (now.getFullYear() - cy) * 12 + (now.getMonth() + 1 - cm) + 1;
+    const cohortMax = Math.max(monthsElapsed, 1);
+
+    // Derive billing interval per sub: itemsTotal / 33.96 rounded to nearest int (1, 2, or 3)
+    function billingInterval(s) {
+      const ratio = s.itemsTotal / 33.96;
+      if (ratio >= 2.5) return 3;
+      if (ratio >= 1.5) return 2;
+      return 1;
+    }
+
+    c.byMonth = {};
+    for (let m = 1; m <= cohortMax; m++) {
+      c.byMonth[m] = { active: 0, ltv: 0 };
+
+      // Calendar month key for month m
+      const mDate = new Date(cy, cm - 1 + (m - 1), 1);
+      const mKey = mDate.getFullYear() + '-' + String(mDate.getMonth() + 1).padStart(2, '0');
+
+      c.subs.forEach(s => {
+        // Retention: cycles × billing interval >= m means still active at month m
+        const interval = billingInterval(s);
+        const monthsCovered = s.cycles * interval;
+        const retainedAtM = monthsCovered >= m || (s.status === 'active' && monthsCovered >= m - interval);
+        if (retainedAtM) c.byMonth[m].active++;
+
+        // LTV: use Shopify revenueByMonth if available (cumulative up to month m)
+        if (s.revenueByMonth) {
+          let cumRev = 0;
+          for (let i = 1; i <= m; i++) {
+            const iDate = new Date(cy, cm - 1 + (i - 1), 1);
+            const iKey = iDate.getFullYear() + '-' + String(iDate.getMonth() + 1).padStart(2, '0');
+            cumRev += s.revenueByMonth[iKey] || 0;
+          }
+          c.byMonth[m].ltv += cumRev;
+        } else {
+          // Fallback: pro-rate cycles × itemsTotal across months
+          c.byMonth[m].ltv += Math.min(monthsCovered, m) / interval * (s.itemsTotal / interval);
+        }
+      });
+    }
+  });
+
+  return cohorts;
+}
+
+// ── Render Everything ──────────────────────────────────────────────────────
+function renderAll() {
+  renderKPIs();
+  renderCohortTable();
+  renderProfitTable();
+  renderSubLtvTable();
+  renderCohortChart();
+  renderProductBreakdown();
+  filterSubs(activeFilter);
+}
+
+function renderKPIs() {
+  const total = allSubs.length;
+  const active = allSubs.filter(s => s.status === 'active').length;
+  const chargebacks = allSubs.filter(s => s.isChargeback).length;
+  const chargebackLoss = allSubs.reduce((s,x) => s + (x.chargebackAmount||0), 0);
+  const avgLtv = total ? allSubs.reduce((s,x)=>s+x.realizedLtv,0)/total : 0;
+  const avgCycles = total ? allSubs.reduce((s,x)=>s+x.cycles,0)/total : 0;
+  const retention = total ? (active/total*100).toFixed(1) : 0;
+  const newSubs = allSubs.filter(s => s.customerType === 'new').length;
+  const existingSubs = allSubs.filter(s => s.customerType === 'existing').length;
+
+  document.getElementById('kpiLTV').textContent = '€' + avgLtv.toFixed(2);
+  document.getElementById('kpiActive').textContent = active.toLocaleString();
+  document.getElementById('kpiCycles').textContent = avgCycles.toFixed(1);
+  document.getElementById('kpiRetention').textContent = retention + '%';
+
+  // Update chargeback KPI
+  const cbEl = document.getElementById('kpiChargebacks');
+  if (cbEl) {
+    cbEl.querySelector('.kpi-value').textContent = chargebacks;
+    cbEl.querySelector('.kpi-sub').textContent = `€${chargebackLoss.toFixed(0)} revenue lost`;
+  }
+
+  // Update customer type KPI
+  const ctEl = document.getElementById('kpiCustomerType');
+  if (ctEl && (newSubs + existingSubs) > 0) {
+    const newPct = ((newSubs/(newSubs+existingSubs))*100).toFixed(0);
+    ctEl.querySelector('.kpi-value').textContent = newPct + '%';
+    ctEl.querySelector('.kpi-sub').textContent = `new · ${existingSubs} existing`;
+  }
+}
+
+
+// ── Profit Table ───────────────────────────────────────────────────────────
+function renderProfitTable() {
+  const wrap = document.getElementById('profitTableWrap');
+  const cohorts = buildCohorts();
+  const cohortKeys = Object.keys(cohorts).sort();
+  if (!cohortKeys.length) return;
+
+  // Cost assumptions
+  // VAT is included in revenue — extract it first: rev_excl_vat = revenue / 1.08
+  const COGS_PCT       = 0.35;   // 35% of ex-VAT revenue
+  const PAYMENT_PCT    = 0.0141; // 1.41% of ex-VAT revenue
+  const OPEX_PCT       = 0.05;   // 5% of ex-VAT revenue
+  const OPEX2_PCT      = 0.04;   // 4% of ex-VAT revenue (additional OPEX)
+  const JUO_PCT        = 0.01;   // 1% of ex-VAT revenue (Juo fees)
+  const SHIPPING_PER_ORDER = 5.30; // €5.30 per order
+  const TOTAL_COST_PCT = COGS_PCT + PAYMENT_PCT + OPEX_PCT + OPEX2_PCT + JUO_PCT; // 46.41% of ex-VAT revenue
+
+  function calcProfit(revenue, orders) {
+    const revenueExVat = revenue / 1.08; // strip VAT
+    return revenueExVat * (1 - TOTAL_COST_PCT) - (orders * SHIPPING_PER_ORDER);
+  }
+
+  const maxM = Math.max(...cohortKeys.map(k => Math.max(...Object.keys(cohorts[k].byMonth).map(Number), 1)));
+  const months = Array.from({length: Math.min(maxM, 12)}, (_, i) => i + 1);
+
+  function profitColor(val) {
+    if (val === null) return 'background:#18181f;color:#5a5a72;';
+    if (val >= 0) {
+      const intensity = Math.min(val / 50, 1);
+      const alpha = 0.15 + intensity * 0.6;
+      return `background:rgba(90,245,160,${alpha});color:#0a0a0f;`;
+    } else {
+      const alpha = 0.3;
+      return `background:rgba(245,106,90,${alpha});color:#0a0a0f;`;
+    }
+  }
+
+  const headerCols = months.map(m => `<th style="text-align:center;min-width:80px;">M${m}</th>`).join('');
+
+  const CAC_NEW      = 40;  // €40 CAC for new customers (first-time buyers)
+  const CAC_EXISTING = 0;   // €0 CAC for existing customers
+
+  const rows = cohortKeys.map(key => {
+    const c = cohorts[key];
+    const n = c.started;
+    const [cy, cm] = key.split('-').map(Number);
+
+    // Count new vs existing in this cohort
+    const nNew      = c.subs.filter(s => s.customerType === 'new').length;
+    const nExisting = c.subs.filter(s => s.customerType === 'existing').length;
+    const blendedCac = n > 0 ? (nNew * CAC_NEW + nExisting * CAC_EXISTING) / n : 0;
+
+    // Cumulative profit — CAC deducted upfront from M1
+    let cumulativeProfit = -blendedCac * n;
+    const cellProfits = [];
+    months.forEach(m => {
+      const d = c.byMonth[m];
+      const dPrev = c.byMonth[m - 1];
+      if (!d) { cellProfits.push(null); return; }
+      const monthRev = d.ltv - (dPrev ? dPrev.ltv : 0);
+      const monthOrders = d.active;
+      cumulativeProfit += calcProfit(monthRev, monthOrders);
+      cellProfits.push(cumulativeProfit);
+    });
+
+    const cells = months.map((m, i) => {
+      const val = cellProfits[i];
+      if (val === null) return "<td style='text-align:center;padding:8px 6px;font-size:11px;background:#18181f;color:#5a5a72;'>—</td>";
+      const perCustomer = val / n;
+      const style = profitColor(perCustomer);
+      return "<td style='text-align:center;padding:8px 6px;font-size:11px;" + style + "' title='Total: €" + val.toFixed(0) + "'>€" + perCustomer.toFixed(0) + "</td>";
+    }).join('');
+
+    const profitPerCustomer = (cellProfits.filter(v => v !== null).pop() || 0) / n;
+    const cacLabel = 'CAC: €' + blendedCac.toFixed(0) + ' blended (' + nNew + ' new @€40, ' + nExisting + ' existing @€0)';
+
+    const profitColor2 = profitPerCustomer >= 0 ? '#5af5a0' : '#f56a5a';
+    return `<tr>
+      <td style="padding:8px 16px;font-size:12px;font-weight:700;white-space:nowrap;border-right:1px solid #222230;">${key}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:11px;color:#5a5a72;">${n}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:11px;color:#a78bfa;" title="${cacLabel}">€${blendedCac.toFixed(0)}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:11px;color:${profitColor2};border-right:1px solid #222230;">€${profitPerCustomer.toFixed(0)}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;margin-top:4px;">
+      <thead>
+        <tr style="border-bottom:1px solid #222230;">
+          <th style="text-align:left;padding:10px 16px;color:#5a5a72;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;">Cohort</th>
+          <th style="text-align:center;padding:10px 12px;color:#5a5a72;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;">Started</th>
+          <th style="text-align:center;padding:10px 12px;color:#a78bfa;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;">Blended CAC</th>
+          <th style="text-align:center;padding:10px 12px;color:#5a5a72;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;border-right:1px solid #222230;">Net Profit/Customer</th>
+          ${headerCols}
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="padding:12px 20px;font-size:10px;color:#5a5a72;border-top:1px solid #222230;">
+      Costs: VAT stripped (÷1.08) → COGS 35% + OPEX 5% + OPEX 4% + Juo 1% + Payment 1.41% + Shipping €5.30/order | CAC: €40 new customers, €0 existing
+    </div>`;
+}
+
+
+
+// ── Storewide LTV ──────────────────────────────────────────────────────────
+async function loadStorewideLtv() {
+  const btn = document.getElementById('btnStorewideSync');
+  const wrap = document.getElementById('storewideTableWrap');
+  btn.textContent = 'Loading…';
+  btn.disabled = true;
+  wrap.innerHTML = '<div style="padding:40px;text-align:center;color:#5a5a72;font-size:12px;">Fetching customers from Shopify…</div>';
+
+  try {
+    // Step 1: Fetch all customers created in last 24 months
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 24);
+    const createdAtMin = cutoff.toISOString();
+
+    let allCustomers = [];
+    let pageInfo = null;
+    let page = 0;
+    do {
+      const url = 'http://localhost:3333/shopify/all-customers?created_at_min=' + encodeURIComponent(createdAtMin) + (pageInfo ? '&page_info=' + pageInfo : '');
+      const res = await fetch(url);
+      const json = await res.json();
+      allCustomers = allCustomers.concat(json.customers || []);
+      pageInfo = json.nextPageInfo;
+      page++;
+      wrap.innerHTML = '<div style="padding:40px;text-align:center;color:#5a5a72;font-size:12px;">Fetched ' + allCustomers.length + ' customers…</div>';
+    } while (pageInfo && page < 50);
+
+    wrap.innerHTML = '<div style="padding:40px;text-align:center;color:#5a5a72;font-size:12px;">Fetched ' + allCustomers.length + ' customers. Building table…</div>';
+
+    // Use total_spent from customer object directly — no per-customer order fetching needed
+    const customerData = allCustomers
+      .filter(c => c.orders_count > 0)
+      .map(c => ({
+        cohortMonth: c.created_at.slice(0, 7),
+        totalSpent: parseFloat(c.total_spent || 0),
+        ordersCount: parseInt(c.orders_count || 0)
+      }));
+
+    renderStorewideTable(customerData);
+    btn.textContent = 'Reload';
+    btn.disabled = false;
+  } catch(e) {
+    wrap.innerHTML = '<div style="padding:40px;text-align:center;color:#f56a5a;">Error: ' + e.message + '</div>';
+    btn.textContent = 'Load Storewide LTV';
+    btn.disabled = false;
+  }
+}
+
+function renderStorewideTable(customerData) {
+  const wrap = document.getElementById('storewideTableWrap');
+  const milestones = [3, 6, 9, 12, 15, 18, 21, 24];
+
+  // Group by cohort month
+  const cohorts = {};
+  customerData.forEach(c => {
+    if (!cohorts[c.cohortMonth]) cohorts[c.cohortMonth] = [];
+    cohorts[c.cohortMonth].push(c);
+  });
+
+  const cohortKeys = Object.keys(cohorts).sort();
+  const now = new Date();
+
+  const headerCols = milestones.map(m => `<th style="text-align:center;min-width:70px;padding:10px 6px;color:#5a5a72;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;">${m}M</th>`).join('');
+
+  const rows = cohortKeys.map(key => {
+    const customers = cohorts[key];
+    const n = customers.length;
+    const [ky, km] = key.split('-').map(Number);
+    const monthsOld = (now.getFullYear() - ky) * 12 + (now.getMonth() + 1 - km);
+
+    // For milestone columns: only count customers whose cohort is old enough
+    // total_spent is all-time, so for milestones we can only show for cohorts
+    // that have existed long enough — the value shown is the cohort avg total_spent
+    // which approximates LTV at that point (all orders up to now, not just up to M months)
+    // We separate cohorts by age: a 2024-02 cohort has 24M of data, so its total_spent IS the 24M LTV
+    const cells = milestones.map(m => {
+      if (monthsOld < m) return `<td style="text-align:center;padding:8px 6px;font-size:11px;background:#18181f;color:#5a5a72;">—</td>`;
+      const avgLtv = customers.reduce((s, c) => s + c.totalSpent, 0) / n;
+      return `<td style="text-align:center;padding:8px 6px;font-size:11px;background:#18181f;color:#c8f55a;">€${avgLtv.toFixed(0)}</td>`;
+    }).join('');
+
+    const avgAllTime = customers.reduce((s, c) => s + c.totalSpent, 0) / n;
+    const avgOrders = (customers.reduce((s, c) => s + c.ordersCount, 0) / n).toFixed(1);
+
+    return `<tr>
+      <td style="padding:8px 16px;font-size:12px;font-weight:700;white-space:nowrap;border-right:1px solid #222230;">${key}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:11px;color:#5a5a72;">${n}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:11px;color:#5a5a72;">${avgOrders}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:11px;color:#c8f55a;border-right:1px solid #222230;">€${avgAllTime.toFixed(0)}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;margin-top:4px;">
+      <thead>
+        <tr style="border-bottom:1px solid #222230;">
+          <th style="text-align:left;padding:10px 16px;color:#5a5a72;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;">Cohort</th>
+          <th style="text-align:center;padding:10px 12px;color:#5a5a72;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;">Customers</th>
+          <th style="text-align:center;padding:10px 12px;color:#5a5a72;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;">Avg Orders</th>
+          <th style="text-align:center;padding:10px 12px;color:#5a5a72;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;border-right:1px solid #222230;">All-time LTV</th>
+          ${headerCols}
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="padding:12px 20px;font-size:10px;color:#5a5a72;border-top:1px solid #222230;">
+      Storewide: all customers from last 24 months. LTV = total_spent from Shopify. Milestone columns show cohort avg LTV once that cohort is old enough.
+    </div>`;
+}
+
+
+// ── Subscription-only LTV Table ────────────────────────────────────────────
+function renderSubLtvTable() {
+  const wrap = document.getElementById('subLtvTableWrap');
+  if (!wrap) return;
+  const cohorts = buildCohorts();
+  const cohortKeys = Object.keys(cohorts).sort();
+  if (!cohortKeys.length) return;
+
+  const maxM = Math.max(...cohortKeys.map(k => Math.max(...Object.keys(cohorts[k].byMonth).map(Number), 1)));
+  const months = Array.from({length: Math.min(maxM, 12)}, (_, i) => i + 1);
+
+  const headerCols = months.map(m => `<th style="text-align:center;min-width:60px;padding:10px 6px;color:#5a5a72;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;">M${m}</th>`).join('');
+
+  const rows = cohortKeys.map(key => {
+    const c = cohorts[key];
+    const n = c.started;
+    const [cy, cm] = key.split('-').map(Number);
+
+    const cells = months.map(m => {
+      if (!c.byMonth[m]) return `<td style="text-align:center;padding:8px 6px;font-size:11px;background:#18181f;color:#5a5a72;">—</td>`;
+
+      // Cumulative sub-only revenue up to month m across all subs
+      let cumSubRev = 0;
+      c.subs.forEach(s => {
+        if (!s.subRevenueByMonth) {
+          // fallback: cycles × itemsTotal
+          const interval = Math.round(s.itemsTotal / 33.96) || 1;
+          cumSubRev += Math.min(s.cycles * interval, m) / interval * s.itemsTotal;
+          return;
+        }
+        for (let i = 1; i <= m; i++) {
+          const iDate = new Date(cy, cm - 1 + (i - 1), 1);
+          const iKey = iDate.getFullYear() + '-' + String(iDate.getMonth() + 1).padStart(2, '0');
+          cumSubRev += s.subRevenueByMonth[iKey] || 0;
+        }
+      });
+
+      const avg = cumSubRev / n;
+      return `<td style="text-align:center;padding:8px 6px;font-size:11px;background:#18181f;color:#a78bfa;">€${avg.toFixed(0)}</td>`;
+    }).join('');
+
+    // Overall sub LTV = sum of all subRevenueByMonth values
+    const totalSubLtv = c.subs.reduce((s, x) => s + Object.values(x.subRevenueByMonth || {}).reduce((a, b) => a + b, 0), 0);
+    const avgSubLtv = totalSubLtv / n;
+
+    return `<tr>
+      <td style="padding:8px 16px;font-size:12px;font-weight:700;white-space:nowrap;border-right:1px solid #222230;">${key}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:11px;color:#5a5a72;">${n}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:11px;color:#a78bfa;border-right:1px solid #222230;">€${avgSubLtv.toFixed(2)}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;margin-top:4px;">
+      <thead>
+        <tr style="border-bottom:1px solid #222230;">
+          <th style="text-align:left;padding:10px 16px;color:#5a5a72;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;">Cohort</th>
+          <th style="text-align:center;padding:10px 12px;color:#5a5a72;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;">Started</th>
+          <th style="text-align:center;padding:10px 12px;color:#a78bfa;font-size:10px;text-transform:uppercase;letter-spacing:0.8px;border-right:1px solid #222230;">Sub LTV</th>
+          ${headerCols}
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="padding:12px 20px;font-size:10px;color:#5a5a72;border-top:1px solid #222230;">
+      Only orders tagged subscription_juo or Firmhouse — excludes any extra purchases made outside the subscription
+    </div>`;
+}
+
+// ── Cohort Table ───────────────────────────────────────────────────────────
+function renderCohortTable() {
+  const wrap = document.getElementById('cohortTableWrap');
+  const cohorts = buildCohorts();
+  const cohortKeys = Object.keys(cohorts).sort();
+  if (!cohortKeys.length) return;
+
+  // Find max months across all cohorts
+  const maxM = Math.max(...cohortKeys.map(k => Math.max(...Object.keys(cohorts[k].byMonth).map(Number), 1)));
+  const months = Array.from({length: Math.min(maxM, 12)}, (_,i) => i+1);
+
+  // Color scale for retention %
+  function retColor(pct) {
+    if (pct === null || pct === undefined) return 'background:#18181f;color:#5a5a72;';
+    const p = Math.min(pct, 1);
+    // green scale
+    const alpha = 0.15 + p * 0.7;
+    if (p >= 0.7) return `background:rgba(90,245,160,${alpha});color:#0a0a0f;`;
+    if (p >= 0.4) return `background:rgba(200,245,90,${alpha});color:#0a0a0f;`;
+    return `background:rgba(245,106,90,${alpha});color:#0a0a0f;`;
+  }
+
+  // Toggle state: 'retention' or 'ltv'
+  const mode = window.cohortMode || 'retention';
+
+  const segment = window.cohortSegment || 'all';
+  const toggleHtml = `
+    <div style="display:flex;gap:8px;padding:16px 20px 0;flex-wrap:wrap;">
+      <button onclick="setCohortMode('retention')" class="filter-btn ${mode==='retention'?'active':''}" id="btnRet">% Retention</button>
+      <button onclick="setCohortMode('ltv')" class="filter-btn ${mode==='ltv'?'active':''}" id="btnLtv">€ Avg LTV</button>
+      <div style="width:1px;background:var(--border);margin:0 4px;"></div>
+      <button onclick="setCohortSegment('all')" class="filter-btn ${segment==='all'?'active':''}">All</button>
+      <button onclick="setCohortSegment('new')" class="filter-btn ${segment==='new'?'active':''}">🆕 New customers</button>
+      <button onclick="setCohortSegment('existing')" class="filter-btn ${segment==='existing'?'active':''}">↩️ Existing customers</button>
+      <button onclick="setCohortSegment('chargeback')" class="filter-btn ${segment==='chargeback'?'active':''}" style="color:var(--accent3);">⚠️ Chargebacks</button>
+    </div>`;
+
+  const headerCols = months.map(m => `<th style="text-align:center;min-width:60px;">M${m}</th>`).join('');
+
+  // Filter subs by segment (use mode-level segment var already declared above)
+  const filteredCohortKeys = cohortKeys.filter(key => {
+    const c = cohorts[key];
+    if (segment === 'new') return c.subs.some(s => s.customerType === 'new');
+    if (segment === 'existing') return c.subs.some(s => s.customerType === 'existing');
+    if (segment === 'chargeback') return c.subs.some(s => s.isChargeback);
+    return true;
+  });
+
+  const rows = filteredCohortKeys.map(key => {
+    const c = cohorts[key];
+    // Filter subs for this segment
+    let segSubs = c.subs;
+    if (segment === 'new') segSubs = c.subs.filter(s => s.customerType === 'new');
+    else if (segment === 'existing') segSubs = c.subs.filter(s => s.customerType === 'existing');
+    else if (segment === 'chargeback') segSubs = c.subs.filter(s => s.isChargeback);
+    const segStarted = segSubs.length;
+    const segActiveNow = segSubs.filter(s=>s.status==='active').length;
+    // Find the last month with data = current LTV position
+    const lastMonth = Math.max(...Object.keys(c.byMonth).map(Number), 1);
+    const lastD = c.byMonth[lastMonth];
+    // Avg LTV = total revenue from all subs in segment / total segment size
+    const avgLtv = segSubs.length > 0 ? segSubs.reduce((s,x)=>s+x.realizedLtv,0)/segSubs.length : 0;
+    const activeNow = segActiveNow;
+    const retNow = segStarted > 0 ? (activeNow/segStarted*100).toFixed(0) : '0';
+    const cbCount = segSubs.filter(s=>s.isChargeback).length;
+    const cbLoss = segSubs.reduce((s,x)=>s+(x.chargebackAmount||0),0);
+
+    const cells = months.map(m => {
+      const d = c.byMonth[m];
+      if (!d) return `<td style="text-align:center;padding:8px 6px;font-family:'DM Mono',monospace;font-size:11px;background:#18181f;color:#5a5a72;">—</td>`;
+      if (mode === 'retention') {
+        const pct = d.active / c.started;
+        const style = retColor(pct);
+        return `<td style="text-align:center;padding:8px 6px;font-family:'DM Mono',monospace;font-size:11px;${style}">${(pct*100).toFixed(0)}%</td>`;
+      } else {
+        const avgM = d.ltv / c.started;
+        return `<td style="text-align:center;padding:8px 6px;font-family:'DM Mono',monospace;font-size:11px;background:#18181f;color:#c8f55a;">€${avgM.toFixed(0)}</td>`;
+      }
+    }).join('');
+
+    return `<tr>
+      <td style="padding:8px 16px;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;white-space:nowrap;border-right:1px solid #222230;">${key}</td>
+      <td style="padding:8px 12px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:#5a5a72;">${segStarted}</td>
+      <td style="padding:8px 12px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:#5af5a0;">${retNow}%</td>
+      <td style="padding:8px 12px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:#c8f55a;border-right:1px solid #222230;">€${avgLtv.toFixed(2)}</td>
+      <td style="padding:8px 12px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:${cbCount>0?'#f56a5a':'#5a5a72'};">${cbCount > 0 ? `${cbCount} (−€${cbLoss.toFixed(0)})` : '—'}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = toggleHtml + `
+    <table style="width:100%;border-collapse:collapse;margin-top:12px;">
+      <thead>
+        <tr style="border-bottom:1px solid #222230;">
+          <th style="text-align:left;padding:8px 16px;font-size:10px;color:#5a5a72;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.8px;border-right:1px solid #222230;">Cohort</th>
+          <th style="text-align:center;padding:8px 12px;font-size:10px;color:#5a5a72;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.8px;">Started</th>
+          <th style="text-align:center;padding:8px 12px;font-size:10px;color:#5a5a72;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.8px;">Ret. now</th>
+          <th style="text-align:center;padding:8px 12px;font-size:10px;color:#5a5a72;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.8px;border-right:1px solid #222230;">Avg LTV</th>
+          <th style="text-align:center;padding:8px 12px;font-size:10px;color:#f56a5a;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.8px;border-right:1px solid #222230;">Chargebacks</th>
+          ${headerCols}
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+window.setCohortMode = function(mode) {
+  window.cohortMode = mode;
+  renderCohortTable();
+};
+
+window.setCohortSegment = function(segment) {
+  window.cohortSegment = segment;
+  renderCohortTable();
+};
+
+// ── Cohort LTV Line Chart ──────────────────────────────────────────────────
+function renderCohortChart() {
+  const canvas = document.getElementById('ltvCanvas');
+  const empty = document.getElementById('chartEmpty');
+
+  const cohorts = buildCohorts();
+  const cohortKeys = Object.keys(cohorts).sort();
+  if (!cohortKeys.length) {
+    canvas.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+
+  canvas.style.display = 'block';
+  empty.style.display = 'none';
+
+  const maxM = Math.min(Math.max(...cohortKeys.map(k => Math.max(...Object.keys(cohorts[k].byMonth).map(Number), 1))), 12);
+  const months = Array.from({length: maxM}, (_,i) => i+1);
+
+  const ctx = canvas.getContext('2d');
+  const W = canvas.parentElement.offsetWidth - 48;
+  const H = 220;
+  canvas.width = W;
+  canvas.height = H;
+
+  const padL = 55, padR = 20, padT = 16, padB = 36;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+
+  // Compute max LTV value across all cohorts/months
+  let maxVal = 0;
+  cohortKeys.forEach(key => {
+    const c = cohorts[key];
+    months.forEach(m => {
+      const d = c.byMonth[m];
+      if (d && d.active > 0) {
+        const avg = d.ltv / d.active;
+        if (avg > maxVal) maxVal = avg;
+      }
+    });
+  });
+  maxVal = maxVal * 1.15 || 100;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + chartH - (i/4)*chartH;
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(34,34,48,0.8)';
+    ctx.lineWidth = 1;
+    ctx.moveTo(padL, y);
+    ctx.lineTo(W - padR, y);
+    ctx.stroke();
+    ctx.fillStyle = '#5a5a72';
+    ctx.font = '10px DM Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('€' + (maxVal * (i/4)).toFixed(0), padL - 6, y + 4);
+  }
+
+  // X axis labels
+  const xStep = chartW / (months.length - 1 || 1);
+  months.forEach((m, i) => {
+    const x = padL + i * xStep;
+    ctx.fillStyle = '#5a5a72';
+    ctx.font = '10px DM Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('M' + m, x, H - padB + 14);
+  });
+
+  // Color palette for cohort lines
+  const palette = ['#c8f55a','#7b6ef6','#f56a5a','#5af5a0','#f5a55a','#5ab4f5','#f55ab4','#a0f55a'];
+
+  // Draw lines per cohort
+  cohortKeys.forEach((key, ci) => {
+    const c = cohorts[key];
+    const color = palette[ci % palette.length];
+    const points = [];
+
+    months.forEach((m, i) => {
+      const d = c.byMonth[m];
+      if (d && d.active > 0) {
+        const avg = d.ltv / d.active;
+        const x = padL + i * xStep;
+        const y = padT + chartH - (avg / maxVal) * chartH;
+        points.push({x, y});
+      }
+    });
+
+    if (points.length < 1) return;
+
+    // Line
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+    ctx.stroke();
+
+    // Dots
+    points.forEach(p => {
+      ctx.beginPath();
+      ctx.fillStyle = color;
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Label at last point
+    const last = points[points.length - 1];
+    ctx.fillStyle = color;
+    ctx.font = 'bold 10px DM Mono, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(key.slice(5), last.x + 5, last.y + 4);
+  });
+}
+
+function renderProductBreakdown() {
+  const el = document.getElementById('productBreakdown');
+  const productMap = {};
+  allSubs.forEach(s => {
+    const prods = s.products.split(',').map(p=>p.trim());
+    prods.forEach(p => {
+      if (!productMap[p]) productMap[p] = { total: 0, count: 0 };
+      productMap[p].total += s.realizedLtv;
+      productMap[p].count += 1;
+    });
+  });
+
+  const sorted = Object.entries(productMap).sort((a,b) => b[1].total/b[1].count - a[1].total/a[1].count);
+  if (!sorted.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">No data</div></div>`;
+    return;
+  }
+
+  const maxAvg = Math.max(...sorted.map(([,v]) => v.total/v.count));
+  el.innerHTML = sorted.map(([name, v]) => {
+    const avg = v.total/v.count;
+    const pct = (avg/maxAvg*100).toFixed(0);
+    return `
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:12px;font-weight:700;">${name.slice(0,28)}</div>
+          <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);">€${avg.toFixed(2)}</div>
+        </div>
+        <div class="ltv-bar">
+          <div class="ltv-fill" style="width:${pct}%;max-width:100%;"></div>
+          <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${v.count} subs</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+
+
+// ── Subscriber Table ───────────────────────────────────────────────────────
+function filterSubs(type, btn) {
+  activeFilter = type;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderSubTable();
+}
+
+function renderSubTable() {
+  const search = (document.getElementById('subSearch').value || '').toLowerCase();
+  filteredSubs = allSubs.filter(s => {
+    const matchFilter = activeFilter === 'all' || s.status === activeFilter;
+    const matchSearch = !search || s.name.toLowerCase().includes(search) || s.email.toLowerCase().includes(search);
+    return matchFilter && matchSearch;
+  });
+
+  const tbody = document.getElementById('subTableBody');
+  if (!filteredSubs.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-title">No results</div>
+      <div class="empty-sub">Try adjusting your search or filter</div>
+    </div></td></tr>`;
+    return;
+  }
+
+  const statusBadge = s => {
+    if (s === 'active') return `<span class="cycle-badge active">● Active</span>`;
+    if (s === 'canceled' || s === 'cancelled') return `<span class="cycle-badge canceled">✕ Canceled</span>`;
+    return `<span class="cycle-badge paused">⏸ ${s}</span>`;
+  };
+
+  tbody.innerHTML = filteredSubs.slice(0,200).map(s => `
+    <tr>
+      <td>
+        <div style="font-weight:700;font-size:13px;">${s.name || '—'}</div>
+        ${s.email ? `<div class="text-sm text-muted">${s.email}</div>` : ''}
+      </td>
+      <td class="text-sm">${s.products.slice(0,40)}</td>
+      <td class="text-sm">${s.createdAt.toLocaleDateString('nl-NL')}</td>
+      <td class="text-sm">${s.cycles}</td>
+      <td style="font-family:'DM Mono',monospace;font-weight:700;color:var(--accent);">€${s.realizedLtv.toFixed(2)}</td>
+      <td style="font-family:'DM Mono',monospace;color:var(--accent2);">€${s.projectedLtv.toFixed(2)}</td>
+      <td>${statusBadge(s.status)}</td>
+    </tr>
+  `).join('');
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+loadConfig();
+toggleConfig(true); // start collapsed if config might already be saved
+
+// If keys exist, show as connected and auto-collapse config
+if (cfg.juoKey) {
+  document.getElementById('configBody').classList.remove('open');
+}
+</script>
+</body>
+</html>
