@@ -922,7 +922,7 @@ async function fetchJuoSubscriptions() {
   while (hasMore) {
     setLoading(true, `Fetching subscriptions (page ${pageNum})…`);
     let url = `/api/juo/subscriptions?limit=${pageSize}`;
-    if (cursor) url += `&after=${encodeURIComponent(cursor)}`;
+    if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
 
     const res = await fetch(url, {
       headers: { 'X-Juo-Admin-Api-Key': key }
@@ -937,8 +937,8 @@ async function fetchJuoSubscriptions() {
     const items = json.data || json.subscriptions || (Array.isArray(json) ? json : []);
     allData = allData.concat(items);
 
-    if (json.hasNextPage && json.endCursor) {
-      cursor = json.endCursor;
+    if (json.nextCursor) {
+      cursor = json.nextCursor;
       pageNum++;
     } else {
       hasMore = false;
