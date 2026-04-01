@@ -7,9 +7,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing X-Juo-Admin-Api-Key header' });
   }
 
-  const { limit = 100, cursor } = req.query;
+  const { limit = 100, after } = req.query;
   let url = `https://api.juo.io/admin/v1/subscriptions?limit=${limit}`;
-  if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+  if (after) url += `&after=${encodeURIComponent(after)}`;
 
   try {
     const response = await fetch(url, {
@@ -25,16 +25,7 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
-
-    // Extract next cursor from Link header
-    let nextCursor = null;
-    const linkHeader = response.headers.get('link');
-    if (linkHeader) {
-      const nextMatch = linkHeader.match(/cursor=([^>&]+)>;\s*rel="next"/);
-      if (nextMatch) nextCursor = nextMatch[1];
-    }
-
-    return res.status(200).json({ ...data, nextCursor });
+    return res.status(200).json(data);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
