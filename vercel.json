@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    { "source": "/api/juo/subscriptions", "destination": "/api/juo/subscriptions" },
+    { "source": "/api/shopify/status", "destination": "/api/shopify/status" },
+    { "source": "/api/shopify/customer-orders", "destination": "/api/shopify/customer-orders" },
+    { "source": "/api/shopify/all-customers", "destination": "/api/shopify/all-customers" },
+    { "source": "/(.*)", "destination": "/public/index.html" }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "alua-ltv-dashboard",
+  "version": "1.0.0",
+  "description": "Subscriber LTV Dashboard — Connect your JUO + Shopify accounts to visualize cohort LTV, retention, and profitability.",
+  "private": true,
+  "scripts": {
+    "dev": "npx vercel dev",
+    "build": "echo 'Static site — no build step needed'",
+    "start": "npx serve public -l 3000"
+  }
+}
