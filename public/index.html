@@ -617,7 +617,10 @@
   <div class="logo">alua<span>.</span>ltv</div>
   <div class="header-right">
     <div class="status-dot" id="statusDot" data-tip="API connection status"></div>
-    <button class="sync-btn" style="background:#444;margin-right:8px;" onclick="loadData(true)" title="Fast sync — JUO only, no Shopify enrichment">
+    <button class="sync-btn" style="background:#333;margin-right:6px;padding:9px 12px;" onclick="loadCachedData()" title="Load last synced data from cache">
+      📦 Cache
+    </button>
+    <button class="sync-btn" style="background:#555;margin-right:6px;" onclick="loadData(true)" title="Fast sync — JUO only, no Shopify enrichment">
       ⚡ Quick
     </button>
     <button class="sync-btn" id="syncBtn" onclick="loadData(false)" title="Full sync — includes Shopify revenue data (slower)">
@@ -937,10 +940,10 @@ async function fetchJuoSubscriptions() {
     }
 
     const json = await res.json();
-    console.log('JUO response page', pageNum, json);
     const items = json.data || json.subscriptions || (Array.isArray(json) ? json : []);
-    console.log('Found', items.length, 'items on page', pageNum, '- hasNextPage:', json.hasNextPage, '- endCursor:', json.endCursor);
     allData = allData.concat(items);
+
+    setLoading(true, `Fetching subscriptions… (${allData.length} loaded)`);
 
     if (json.hasNextPage && json.endCursor) {
       cursor = json.endCursor;
@@ -1020,21 +1023,45 @@ async function loadData(quickMode = false) {
       const uniqueCustomerIds = allSubs.map(s => s.shopifyCustomerId).filter(Boolean);
       const enrichMap = {};
 
-      // Process in smaller batches with delays to avoid Shopify rate limits
+      // Process in smaller batches with delays and retry logic for rate limits
       const batchSize = 2;
-      const delayMs = 600; // 600ms between batches to stay under rate limit
+      const delayMs = 500;
+      const maxRetries = 3;
+      let successCount = 0;
+      let errorCount = 0;
+
+      async function fetchWithRetry(customerId, retries = 0) {
+        try {
+          const res = await fetch(`/api/shopify/customer-orders?customerId=${customerId}`, {
+            headers: { 'X-Shopify-Domain': cfg.shopDomain, 'X-Shopify-Access-Token': cfg.shopifyToken }
+          });
+          if (res.status === 429 && retries < maxRetries) {
+            // Rate limited — wait and retry with exponential backoff
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+            return fetchWithRetry(customerId, retries + 1);
+          }
+          if (!res.ok) return null;
+          return await res.json();
+        } catch(e) {
+          if (retries < maxRetries) {
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+            return fetchWithRetry(customerId, retries + 1);
+          }
+          return null;
+        }
+      }
+
       for (let i = 0; i < uniqueCustomerIds.length; i += batchSize) {
-        setLoading(true, `Fetching Shopify revenue… (${i}/${uniqueCustomerIds.length})`);
+        const pct = Math.round((i / uniqueCustomerIds.length) * 100);
+        setLoading(true, `Fetching Shopify revenue… ${pct}% (${successCount} ok, ${errorCount} failed)`);
         const batch = uniqueCustomerIds.slice(i, i + batchSize);
         await Promise.all(batch.map(async customerId => {
           try {
             const subRecord = allSubs.find(s => s.shopifyCustomerId === customerId);
             const subStart = subRecord ? new Date(subRecord.createdAt) : new Date();
-            const res = await fetch(`/api/shopify/customer-orders?customerId=${customerId}`, {
-              headers: { 'X-Shopify-Domain': cfg.shopDomain, 'X-Shopify-Access-Token': cfg.shopifyToken }
-            });
-            if (!res.ok) { enrichMap[customerId] = { type: 'new', revenueByMonth: {}, totalLtv: 0 }; return; }
-            const json = await res.json();
+            const json = await fetchWithRetry(customerId);
+            if (!json) { enrichMap[customerId] = { type: 'new', revenueByMonth: {}, totalLtv: 0 }; errorCount++; return; }
+            successCount++;
             const orders = json.orders || [];
 
             // New vs existing: any paid non-sub order BEFORE subscription start?
@@ -1093,10 +1120,18 @@ async function loadData(quickMode = false) {
           subRevenueByMonth: entry.subRevenueByMonth || null
         };
       });
-      showToast(`Shopify revenue loaded for ${uniqueCustomerIds.length} customers ✓`, 'success');
-    } else {
-      showToast('Shopify not connected — check your Store Domain and Admin API Token', 'info');
+      showToast(`Shopify: ${successCount} loaded, ${errorCount} failed ✓`, 'success');
+    } else if (!quickMode) {
+      showToast('Shopify not connected — using JUO data only', 'info');
     }
+
+    // Cache the data with timestamp
+    try {
+      localStorage.setItem('aluaLtvData', JSON.stringify({
+        timestamp: Date.now(),
+        subs: allSubs
+      }));
+    } catch(e) { /* localStorage full or unavailable */ }
 
     renderAll();
     toggleConfig(true);
@@ -1109,6 +1144,26 @@ async function loadData(quickMode = false) {
   setLoading(false);
   btn.classList.remove('loading');
   icon.classList.remove('spin');
+}
+
+// ── Load cached data ──────────────────────────────────────────────────────
+function loadCachedData() {
+  try {
+    const cached = JSON.parse(localStorage.getItem('aluaLtvData') || '{}');
+    if (cached.subs && cached.subs.length > 0) {
+      allSubs = cached.subs.map(s => ({
+        ...s,
+        createdAt: new Date(s.createdAt)
+      }));
+      const ago = Math.round((Date.now() - cached.timestamp) / 60000);
+      showToast(`Loaded ${allSubs.length} subs from cache (${ago}m ago)`, 'success');
+      document.getElementById('statusDot').className = 'status-dot connected';
+      renderAll();
+      return true;
+    }
+  } catch(e) {}
+  showToast('No cached data available', 'error');
+  return false;
 }
 
 // ── Process a single Juo subscription ─────────────────────────────────────
@@ -1915,6 +1970,14 @@ toggleConfig(true); // start collapsed if config might already be saved
 if (cfg.juoKey) {
   document.getElementById('configBody').classList.remove('open');
 }
+
+// Auto-load cached data on startup if available
+try {
+  const cached = JSON.parse(localStorage.getItem('aluaLtvData') || '{}');
+  if (cached.subs && cached.subs.length > 0) {
+    loadCachedData();
+  }
+} catch(e) {}
 </script>
 </body>
 </html>
